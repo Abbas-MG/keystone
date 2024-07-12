@@ -1,29 +1,80 @@
-name: Build
+name: PyPI 📦 Distribution
 
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-  workflow_dispatch:
+on: [push]
 
 jobs:
   build:
-    runs-on: windows-latest
-
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+        platform: [x32, x64]
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+    - uses: actions/checkout@v2
 
-    - name: Set up Visual Studio environment
-      run: |
-        call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
 
-    - name: Configure and build
+    - name: Set up MSVC x86
+      if: matrix.os == 'windows-latest' && matrix.platform == 'x32'
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x86
+
+    - name: Set up MSVC x64
+      if: matrix.os == 'windows-latest' && matrix.platform == 'x64'
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Install dependencies
       run: |
-        mkdir build
-        cd build
-        cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DLLVM_TARGETS_TO_BUILD="X86" -G "NMake Makefiles" ..
-        nmake
+        pip install setuptools wheel
+
+    - name: Build distribution 📦
+      shell: bash 
+      run: |
+        if [ ${{ matrix.platform }} == 'x32' ] && [ ${{ matrix.os }} == 'windows-latest' ]; then
+             cd bindings/python && python setup.py build -p win32 bdist_wheel -p win32
+        elif [ ${{ matrix.platform }} == 'x32' ] && [ ${{ matrix.os }} == 'ubuntu-latest' ]; then
+             docker run --rm -v `pwd`/:/work dockcross/manylinux1-x86 > ./dockcross
+             chmod +x ./dockcross
+             ./dockcross bindings/python/build_wheel.sh
+        elif [ ${{ matrix.platform }} == 'x64' ] && [ ${{ matrix.os }} == 'ubuntu-latest' ]; then
+             docker run --rm -v `pwd`/:/work dockcross/manylinux1-x64 > ./dockcross
+             chmod +x ./dockcross
+             ./dockcross bindings/python/build_wheel.sh
+        elif [ ${{ matrix.platform }} == 'x32' ] && [ ${{ matrix.os }} == 'macos-latest' ]; then
+             cd bindings/python && python setup.py sdist
+        else
+             cd bindings/python && python setup.py bdist_wheel
+        fi
+
+    - uses: actions/upload-artifact@v2
+      with:
+         path: ${{ github.workspace }}/bindings/python/dist/*
+
+  publish:
+    needs: [build]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags')
+    steps:
+      - uses: actions/download-artifact@v2
+        with:
+          name: artifact
+          path: dist
+
+      - name: Publish distribution 📦 to test PyPI
+        uses: pypa/gh-action-pypi-publish@master
+        with:
+          user: __token__
+          password: ${{ secrets.testpypi_pass }}
+          repository_url: https://test.pypi.org/legacy/
+
+      - name: Publish distribution 📦 to PyPI
+        if: ${{ success() }}
+        uses: pypa/gh-action-pypi-publish@master
+        with:
+          user: __token__
+          password: ${{ secrets.pypi_pass }}
