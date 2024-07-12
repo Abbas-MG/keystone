@@ -1,19 +1,27 @@
 name: Build
+
 on:
- workflow_dispatch:
+  workflow_dispatch:
 
 jobs:
   check-bats-version:
-    runs-on: [Windows-latest]
+    runs-on: windows-latest
     steps:
-      - name: checkout
-      - uses: actions/checkout@v4
-      - name: "create and enter build dir"
-      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Checkout code
+        uses: actions/checkout@v2
+      
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Create and enter build directory
         run: |
           mkdir build
           cd build
-      - name: "build for x86 "
+
+      - name: Configure CMake
         run: |
-         cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DLLVM_TARGETS_TO_BUILD="X86" -G "NMake Makefiles" .. 
-         nmake 
+          cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DLLVM_TARGETS_TO_BUILD="X86" -G "NMake Makefiles" ..
+
+      - name: Build with NMake
+        run: |
+          nmake
