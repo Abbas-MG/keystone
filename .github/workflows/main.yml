@@ -1,19 +1,19 @@
 name: learn-github-actions
-on: [push]
-
-workflow_dispatch:
+on:
+ workflow_dispatch:
 
 jobs:
   check-bats-version:
     runs-on: [Windows-latest]
     steps:
-	  - name: checkout
+      - name: checkout
       - uses: actions/checkout@v4
       - name: "create and enter build dir"
-	  - uses: ilammy/msvc-dev-cmd@v1
+      - uses: ilammy/msvc-dev-cmd@v1
         run: |
           mkdir build
           cd build
       - name: "build for x86 "
-        run: cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DLLVM_TARGETS_TO_BUILD="X86" -G "NMake Makefiles" .. 
-        run: nmake 
+        run: |
+         cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DLLVM_TARGETS_TO_BUILD="X86" -G "NMake Makefiles" .. 
+         nmake 
